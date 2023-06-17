@@ -97,6 +97,7 @@
       mkCaffe = config: mkDerivation {
         inherit name;
         src = builtins.fetchGit {
+          inherit name;
           url = "https://github.com/BVLC/caffe.git";
           ref = "refs/tags/1.0";
           rev = "eeebdab16155d34ff8f5f42137da7df4d1c7eab0";
