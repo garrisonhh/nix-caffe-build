@@ -113,23 +113,19 @@
         '';
 
         buildPhase = ''
-          make -j`nproc` ${config.build}
+          make -j`nproc` distribute
         '';
 
         installPhase = ''
           mkdir -p $out/
-          cp -r ./build/* $out/
-          cp -r ./include/ $out/
-          cp -r ./python/ $out/
+          cp -r ./distribute/* $out/
         '';
       };
 
       packages = {
-        default     = mkCaffe { build = "lib"; cripple = false; };
-        release     = mkCaffe { build = "lib"; cripple = false; };
-        crippled    = mkCaffe { build = "lib"; cripple = true; };
-        py-release  = mkCaffe { build = "py";  cripple = false; };
-        py-crippled = mkCaffe { build = "py";  cripple = true; };
+        default        = mkCaffe { cripple = false; };
+        release        = mkCaffe { cripple = false; };
+        crippled       = mkCaffe { cripple = true; };
       };
     in {
       packages.${system} = packages;
