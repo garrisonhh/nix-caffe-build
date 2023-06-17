@@ -11,6 +11,7 @@
       system = "x86_64-linux";
 
       pkgs = nixpkgs.legacyPackages.${system};
+      pyPkgs = pkgs.python311Packages;
       atlasPkgs = atlas.packages.${system};
       inherit (pkgs.stdenv) mkDerivation;
 
@@ -28,7 +29,9 @@
         lmdb
         leveldb
         snappy
-        python27
+        pyPkgs.python
+        pyPkgs.numpy
+        pyPkgs.boost
         (if (cripple) then atlasPkgs.crippled else atlasPkgs.release)
       ];
 
@@ -44,11 +47,11 @@
             -gencode arch=compute_61,code=sm_61 \
             -gencode arch=compute_61,code=compute_61
 
-        PYTHON_INCLUDE := /usr/include/python2.7 \
-            /usr/lib/python2.7/dist-packages/numpy/core/include
-        PYTHON_LIB := /usr/lib
+        PYTHON_LIBRARIES := boost_python311 python3.11
+        PYTHON_INCLUDE := /usr/include PYTHON_INCLUDE_REPLACEME
+        PYTHON_LIB := /usr/lib PYTHON_LIB_REPLACEME
 
-        INCLUDE_DIRS := $(PYTHON_INCLUDE) /usr/local/include
+        INCLUDE_DIRS := $(PYTHON_INCLUDE) /usr/local/include /usr/include
         LIBRARY_DIRS := $(PYTHON_LIB) /usr/local/lib /usr/lib
 
         BUILD_DIR := build
@@ -59,7 +62,39 @@
         Q ?= @
       '';
 
-      mkCaffe = cripple: mkDerivation {
+      # patches Makefile.config to automatically detected python include dirs
+      pythonConfigPatcher = builtins.toFile "include_patcher.py" ''
+        from sys import prefix, version_info
+        import os
+        import numpy as np
+
+        # get include folders
+        version = f"python{version_info.major}.{version_info.minor}"
+
+        includes = " ".join([
+            f"{prefix}/include/{version}",
+            np.get_include(),
+        ])
+
+        # get extra lib folders
+        libs = " ".join([
+          os.getenv("BOOST_LIB"),
+        ])
+
+        # patch Makefile.config
+        config_path = os.path.join(os.getcwd(), 'Makefile.config')
+
+        with open(config_path, 'r') as f:
+          text = f.read()
+
+        text = text.replace('PYTHON_INCLUDE_REPLACEME', includes)
+        text = text.replace('PYTHON_LIB_REPLACEME', libs)
+
+        with open(config_path, 'w') as f:
+          f.write(text)
+      '';
+
+      mkCaffe = config: mkDerivation {
         inherit name;
         src = builtins.fetchGit {
           url = "https://github.com/BVLC/caffe.git";
@@ -67,32 +102,34 @@
           rev = "eeebdab16155d34ff8f5f42137da7df4d1c7eab0";
         };
 
-        buildInputs = caffePkgs cripple;
+        buildInputs = caffePkgs config.cripple;
 
         configurePhase = ''
+          export BOOST_LIB="${pyPkgs.boost.outPath}/lib"
+
           cp ${caffeMakefileConfig} Makefile.config
+          chmod +rw Makefile.config
+          python ${pythonConfigPatcher}
         '';
 
         buildPhase = ''
-          make -j`nproc` all
-        '';
-
-        checkPhase = ''
-          make test
-          make runtest
+          make -j`nproc` ${config.build}
         '';
 
         installPhase = ''
           mkdir -p $out/
           cp -r ./build/* $out/
           cp -r ./include/ $out/
+          cp -r ./python/ $out/
         '';
       };
 
       packages = {
-        default = mkCaffe false;
-        release = mkCaffe false;
-        crippled = mkCaffe true;
+        default     = mkCaffe { build = "lib"; cripple = false; };
+        release     = mkCaffe { build = "lib"; cripple = false; };
+        crippled    = mkCaffe { build = "lib"; cripple = true; };
+        py-release  = mkCaffe { build = "py";  cripple = false; };
+        py-crippled = mkCaffe { build = "py";  cripple = true; };
       };
     in {
       packages.${system} = packages;
