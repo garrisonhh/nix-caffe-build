@@ -1,40 +1,6 @@
 {
   "nodes": {
-    "atlas": {
-      "inputs": {
-        "nixpkgs": "nixpkgs"
-      },
-      "locked": {
-        "lastModified": 1686669554,
-        "narHash": "sha256-QeYNfHqUzuejQDIjv5VXATcd12MP+7yO/b9Q3u0HP8g=",
-        "owner": "garrisonhh",
-        "repo": "nix-atlas-build",
-        "rev": "da03a0f501e042ed556c91239f321d67bac82301",
-        "type": "github"
-      },
-      "original": {
-        "owner": "garrisonhh",
-        "repo": "nix-atlas-build",
-        "type": "github"
-      }
-    },
     "nixpkgs": {
-      "locked": {
-        "lastModified": 1686513595,
-        "narHash": "sha256-H3JNqj7TEiMx5rd8lRiONvgFZvmf3kmwHI2umDdqgFY=",
-        "owner": "NixOs",
-        "repo": "nixpkgs",
-        "rev": "bb8b5735d6f7e06b9ddd27de115b0600c1ffbdb4",
-        "type": "github"
-      },
-      "original": {
-        "owner": "NixOs",
-        "ref": "nixos-23.05",
-        "repo": "nixpkgs",
-        "type": "github"
-      }
-    },
-    "nixpkgs_2": {
       "locked": {
         "lastModified": 1686929285,
         "narHash": "sha256-WGtVzn+vGMPTXDO0DMNKVFtf+zUSqeW+KKk4Y/Ae99I=",
@@ -52,8 +18,7 @@
     },
     "root": {
       "inputs": {
-        "atlas": "atlas",
-        "nixpkgs": "nixpkgs_2"
+        "nixpkgs": "nixpkgs"
       }
     }
   },

@@ -1,45 +1,44 @@
 {
-  inputs = {
-    nixpkgs.url = github:NixOs/nixpkgs/nixos-22.11;
-    atlas.url = github:garrisonhh/nix-atlas-build;
-  };
+  inputs.nixpkgs.url = github:NixOs/nixpkgs/nixos-22.11;
 
-  outputs = { self, nixpkgs, atlas }:
+  outputs = { self, nixpkgs }:
     let
       # project config
       name = "caffe";
       system = "x86_64-linux";
 
-      pkgs = nixpkgs.legacyPackages.${system};
+      pkgs = (import nixpkgs) {
+        inherit system;
+        config.allowUnfree = true; # needed for cuda
+      };
+
       pyPkgs = pkgs.python311Packages;
-      atlasPkgs = atlas.packages.${system};
       inherit (pkgs.stdenv) mkDerivation;
 
       # packages
-      caffePkgs = cripple: with pkgs; [
+      caffePkgs = with pkgs; [
         git
         glog
         gflags
         protobuf3_8
-        caffe
-        cudaPackages.cudatoolkit
         opencv2
+        openblas
         boost
         hdf5-cpp
         lmdb
         leveldb
         snappy
+        cudatoolkit
         pyPkgs.python
         pyPkgs.numpy
         pyPkgs.boost
-        (if (cripple) then atlasPkgs.crippled else atlasPkgs.release)
       ];
 
       # caffe
       caffeMakefileConfig = builtins.toFile "Makefile.config" ''
-        BLAS := atlas
+        BLAS := open
 
-        CUDA_DIR := /usr/local/cuda
+        CUDA_DIR := CUDA_DIR_REPLACEME
         CUDA_ARCH := \
             -gencode arch=compute_50,code=sm_50 \
             -gencode arch=compute_52,code=sm_52 \
@@ -64,16 +63,18 @@
 
       # patches Makefile.config to automatically detected python include dirs
       pythonConfigPatcher = builtins.toFile "include_patcher.py" ''
-        from sys import prefix, version_info
+        from sys import argv, prefix, version_info
         import os
         import numpy as np
+
+        input_path, output_path = argv[1], argv[2]
 
         # get include folders
         version = f"python{version_info.major}.{version_info.minor}"
 
         includes = " ".join([
-            f"{prefix}/include/{version}",
-            np.get_include(),
+          f"{prefix}/include/{version}",
+          np.get_include(),
         ])
 
         # get extra lib folders
@@ -81,16 +82,15 @@
           os.getenv("BOOST_LIB"),
         ])
 
-        # patch Makefile.config
-        config_path = os.path.join(os.getcwd(), 'Makefile.config')
-
-        with open(config_path, 'r') as f:
+        # patch config
+        with open(input_path, 'r') as f:
           text = f.read()
 
         text = text.replace('PYTHON_INCLUDE_REPLACEME', includes)
         text = text.replace('PYTHON_LIB_REPLACEME', libs)
+        text = text.replace('CUDA_DIR_REPLACEME', os.getenv('CUDA_DIR'))
 
-        with open(config_path, 'w') as f:
+        with open(output_path, 'w') as f:
           f.write(text)
       '';
 
@@ -103,14 +103,13 @@
           rev = "eeebdab16155d34ff8f5f42137da7df4d1c7eab0";
         };
 
-        buildInputs = caffePkgs config.cripple;
+        buildInputs = caffePkgs;
 
         configurePhase = ''
           export BOOST_LIB="${pyPkgs.boost.outPath}/lib"
+          export CUDA_DIR="${pkgs.cudatoolkit.outPath}/"
 
-          cp ${caffeMakefileConfig} Makefile.config
-          chmod +rw Makefile.config
-          python ${pythonConfigPatcher}
+          python ${pythonConfigPatcher} ${caffeMakefileConfig} Makefile.config
         '';
 
         buildPhase = ''
@@ -124,9 +123,8 @@
       };
 
       packages = {
-        default        = mkCaffe { cripple = false; };
-        release        = mkCaffe { cripple = false; };
-        crippled       = mkCaffe { cripple = true; };
+        default = mkCaffe {};
+        release = mkCaffe {};
       };
     in {
       packages.${system} = packages;
